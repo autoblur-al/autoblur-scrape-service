@@ -14,10 +14,24 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     environment: production
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # --- DEBUG: Print OIDC sub claim ---
+      - name: Request OIDC Token
+        id: oidc-token
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const id_token = await core.getIDToken();
+            core.setOutput("id_token", id_token);
+
+      - name: Print OIDC sub claim
+        run: |
+          echo '${{ steps.oidc-token.outputs.id_token }}' | awk -F'.' '{print $2}' | base64 -d | jq .
+      # --------------------------------------------
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -25,7 +39,6 @@ jobs:
           aws-region: ${{ secrets.AWS_REGION }}
 
       - name: Login to Amazon ECR
-        id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
       - name: Build Docker image
@@ -39,6 +52,11 @@ jobs:
       - name: Update deployment manifest image
         run: |
           sed -i "s|<ECR_REGISTRY>/<ECR_REPOSITORY>:TAG_PLACEHOLDER|${{ secrets.ECR_REGISTRY }}/${{ secrets.ECR_REPOSITORY }}:${{ github.sha }}|g" k8s/deployment.yaml
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: "latest"
 
       - name: Update kubeconfig for EKS
         run: |
