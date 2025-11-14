@@ -48,7 +48,7 @@ jobs:
 
       - name: Update deployment manifest image
         run: |
-          sed -i "s|<ECR_REGISTRY>/<ECR_REPOSITORY>:TAG_PLACEHOLDER|${{ secrets.ECR_REGISTRY }}/${{ secrets.ECR_REPOSITORY }}:${{ github.sha }}|g" k8s/deployment.yaml
+          sed -i "s|<ECR_REGISTRY>/<ECR_REPOSITORY>:TAG_PLACEHOLDER|${{ secrets.ECR_REGISTRY }}/${{ secrets.ECR_REPOSITORY }}:${{ github.sha }}|g" deployment.yaml
 
       - name: Set up kubectl
         uses: azure/setup-kubectl@v3
