@@ -1,0 +1,19 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: autoblur-scrape-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: autoblur-scrape-service
+  template:
+    metadata:
+      labels:
+        app: autoblur-scrape-service
+    spec:
+      containers:
+        - name: autoblur-scrape-service
+          image: <ECR_REGISTRY>/<ECR_REPOSITORY>:TAG_PLACEHOLDER
+          ports:
+            - containerPort: 8000

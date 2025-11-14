@@ -7,6 +7,7 @@ class Settings(BaseSettings):
     db_port: str
     db_name: str
     service_port: int = 8000
+    service_host: str = "0.0.0.0"
 
     class Config:
         env_file = ".env"
