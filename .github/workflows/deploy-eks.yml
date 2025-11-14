@@ -16,7 +16,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # List files and print some environment info
+      # List files and print some  info
       - name: List files and env
         run: |
           echo "Current directory: $(pwd)"
