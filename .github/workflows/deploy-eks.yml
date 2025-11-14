@@ -74,8 +74,35 @@ jobs:
 
       - name: Deploy to EKS
         run: |
+          set -e
+
+          echo "Applying manifests..."
           kubectl apply -f k8s/rendered/deployment.yaml
-          kubectl rollout status deployment/autoblur-scrape-service
+
+          echo "Waiting for rollout..."
+          if ! kubectl rollout status deployment/*** --timeout=180s; then
+            echo "Rollout failed, collecting debug info..."
+
+            echo "==== Deployments ===="
+            kubectl get deploy
+
+            echo "==== ReplicaSets ===="
+            kubectl get rs
+
+            echo "==== Pods (all) ===="
+            kubectl get pods -o wide
+
+            echo "==== Describe deployment ===="
+            kubectl describe deployment/*** || true
+
+            echo "==== Describe pods with app=*** ===="
+            kubectl describe pods -l app=*** || true
+
+            echo "==== Logs from pods (if any) ===="
+            kubectl logs -l app=*** --tail=100 || true
+
+            exit 1
+          fi
 
       - name: Post-deploy diagnostics
         run: |
