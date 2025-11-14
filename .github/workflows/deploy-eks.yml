@@ -16,7 +16,24 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # Optional: Print OIDC sub for debug
+      # List files and print some environment info
+      - name: List files and env
+        run: |
+          echo "Current directory: $(pwd)"
+          ls -lah
+          echo "==== ENVIRONMENT VARIABLES ===="
+          env | sort
+          echo "Github context:"
+          echo "  Repo: $GITHUB_REPOSITORY"
+          echo "  Ref: $GITHUB_REF"
+          echo "  SHA: $GITHUB_SHA"
+
+      # Print GitHub context JSON
+      - name: Print GitHub context
+        run: |
+          echo '${{ toJson(github) }}'
+
+      # Request OIDC token, print entire raw token
       - name: Request OIDC token
         id: oidc-token
         uses: actions/github-script@v7
@@ -24,31 +41,64 @@ jobs:
           script: |
             const id_token = await core.getIDToken();
             core.setOutput("id_token", id_token);
+            console.log("Raw OIDC token:", id_token);
 
-      - name: Print OIDC sub claim
+      - name: Print OIDC sub claim (decoded)
         run: |
+          echo "Decoded OIDC token:"
           echo '${{ steps.oidc-token.outputs.id_token }}' | awk -F'.' '{print $2}' | base64 --decode | jq .
+          echo "==== OIDC subject ===="
+          echo '${{ steps.oidc-token.outputs.id_token }}' | awk -F'.' '{print $2}' | base64 --decode | jq .sub
+
+      # Print AWS CLI version/debug info
+      - name: AWS CLI version and config
+        run: |
+          aws --version
+          aws configure list
+          aws sts get-caller-identity || echo "Could not get caller identity"
 
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ secrets.AWS_REGION }}
+          # Enable role-chaining debug output (optional)
+        env:
+          AWS_ROLE_SESSION_NAME: "GitHubActionsSession"
+
+      - name: Whoami (debug AWS identity after credentials)
+        run: |
+          aws sts get-caller-identity
+          echo "Checking EKS permissions for cluster [${{ secrets.EKS_CLUSTER_NAME }}] in region [${{ secrets.AWS_REGION }}]"
+          aws eks describe-cluster --region ${{ secrets.AWS_REGION }} --name ${{ secrets.EKS_CLUSTER_NAME }} || echo "Failed to describe EKS cluster"
 
       - name: Login to Amazon ECR
         uses: aws-actions/amazon-ecr-login@v2
 
+      - name: Docker debug info
+        run: |
+          docker version
+          docker info
+          echo "Listing Docker images:"
+          docker images
+
       - name: Build Docker image
         run: |
+          set -x
           docker build -t ${{ secrets.ECR_REGISTRY }}/${{ secrets.ECR_REPOSITORY }}:${{ github.sha }} .
+          docker images | grep ${{ secrets.ECR_REPOSITORY }} || echo "Built image not found"
 
       - name: Push Docker image to ECR
         run: |
+          set -x
           docker push ${{ secrets.ECR_REGISTRY }}/${{ secrets.ECR_REPOSITORY }}:${{ github.sha }}
 
       - name: Update deployment manifest image
         run: |
+          set -x
+          echo "Updating deployment.yaml with image:"
           sed -i "s|<ECR_REGISTRY>/<ECR_REPOSITORY>:TAG_PLACEHOLDER|${{ secrets.ECR_REGISTRY }}/${{ secrets.ECR_REPOSITORY }}:${{ github.sha }}|g" deployment.yaml
+          cat deployment.yaml | head -20  # Show first lines for debug
 
       - name: Set up kubectl
         uses: azure/setup-kubectl@v3
@@ -57,9 +107,30 @@ jobs:
 
       - name: Update kubeconfig for EKS
         run: |
-          aws eks update-kubeconfig --region ${{ secrets.AWS_REGION }} --name ${{ secrets.EKS_CLUSTER_NAME }}
+          set -x
+          aws eks update-kubeconfig --region ${{ secrets.AWS_REGION }} --name ${{ secrets.EKS_CLUSTER_NAME }} --verbose
+          echo "Kubeconfig context:"
+          kubectl config current-context
+          kubectl config view
 
-      - name: Deploy to EKS
+      - name: Debug kubectl cluster-info
         run: |
+          set -x
+          kubectl cluster-info || echo "kubectl cluster-info failed"
+          kubectl get nodes || echo "No nodes found in cluster"
+
+      - name: Deploy to EKS (logs and error info)
+        run: |
+          set -x
           kubectl apply -f k8s/deployment.yaml
           kubectl rollout status deployment/autoblur-scrape-service
+          kubectl describe deployment autoblur-scrape-service || echo "Describe failed"
+          kubectl get pods -o wide || echo "Could not list pods"
+
+      - name: Collect and show logs for troubleshooting
+        run: |
+          echo "Last 20 events in the cluster:"
+          kubectl get events --sort-by=.metadata.creationTimestamp | tail -n 20 || echo "No events found"
+          echo "Last 10 logs from your main pod (if any):"
+          POD=$(kubectl get pods -l app=autoblur-scrape-service -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)
+          if [ -n "$POD" ]; then kubectl logs $POD --tail=10; fi
