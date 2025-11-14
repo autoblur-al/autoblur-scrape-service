@@ -73,6 +73,9 @@ jobs:
           head -n 30 k8s/rendered/deployment.yaml
 
       - name: Deploy to EKS
+        env:
+          DEPLOYMENT_NAME: autoblur-scrape-service
+          APP_LABEL: autoblur-scrape-service
         run: |
           set -e
 
@@ -80,26 +83,29 @@ jobs:
           kubectl apply -f k8s/rendered/deployment.yaml
 
           echo "Waiting for rollout..."
-          if ! kubectl rollout status deployment/*** --timeout=180s; then
+          if ! kubectl rollout status deployment/${DEPLOYMENT_NAME} --timeout=180s; then
             echo "Rollout failed, collecting debug info..."
 
+            echo "==== Nodes ===="
+            kubectl get nodes -o wide || true
+
             echo "==== Deployments ===="
-            kubectl get deploy
+            kubectl get deploy || true
 
             echo "==== ReplicaSets ===="
-            kubectl get rs
+            kubectl get rs || true
 
             echo "==== Pods (all) ===="
-            kubectl get pods -o wide
+            kubectl get pods -o wide || true
 
             echo "==== Describe deployment ===="
-            kubectl describe deployment/*** || true
+            kubectl describe deployment/${DEPLOYMENT_NAME} || true
 
-            echo "==== Describe pods with app=*** ===="
-            kubectl describe pods -l app=*** || true
+            echo "==== Describe pods with app=${APP_LABEL} ===="
+            kubectl describe pods -l app=${APP_LABEL} || true
 
             echo "==== Logs from pods (if any) ===="
-            kubectl logs -l app=*** --tail=100 || true
+            kubectl logs -l app=${APP_LABEL} --tail=100 || true
 
             exit 1
           fi
