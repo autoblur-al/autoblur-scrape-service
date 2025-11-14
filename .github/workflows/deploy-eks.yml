@@ -68,7 +68,7 @@ jobs:
       - name: Prepare rendered deployment manifest
         run: |
           mkdir -p k8s/rendered
-          sed "s|IMAGE_PLACEHOLDER|${IMAGE_URI}|g" k8s/deployment.yaml > k8s/rendered/deployment.yaml
+          sed "s|IMAGE_PLACEHOLDER|${IMAGE_URI}|g" deployment.yaml > k8s/rendered/deployment.yaml
           echo "Rendered deployment manifest:"
           head -n 30 k8s/rendered/deployment.yaml
 
