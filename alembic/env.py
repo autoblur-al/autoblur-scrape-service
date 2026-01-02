@@ -3,6 +3,9 @@ from logging.config import fileConfig
 from sqlalchemy import engine_from_config
 from sqlalchemy import pool
 from db.database import Base
+from models.car import Car
+from models.car_image import CarImage
+from models.user import User
 
 
 from alembic import context

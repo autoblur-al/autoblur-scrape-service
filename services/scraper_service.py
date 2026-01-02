@@ -1,9 +1,15 @@
 from configs.logger_config import setup_logger
 from clients.currency import convert_krw_to_eur
 from schemas.car import CarDataResponse
+import os
+import requests
+from models.car_image import CarImage
+from db.deps import get_db
 from selenium import webdriver
 from bs4 import BeautifulSoup
 from deep_translator import GoogleTranslator
+
+logger = setup_logger("scraper_service")
 
 class CarScraper:
     def __init__(self):
@@ -21,11 +27,45 @@ class CarScraper:
         price_won = (price + 44) * 10000
         return price_won
 
-    def scrape(self, url):
+    def download_and_save_image(self, image_url: str, car_id: int, order_num: int, save_dir: str = None) -> str:
+        # Use settings for image save directory
+        from configs.settings import settings
+        if save_dir is None:
+            save_dir = settings.car_image_save_dir
+        os.makedirs(save_dir, exist_ok=True)
+        filename = f"car_{car_id}_img_{order_num}.jpg"
+        file_path = os.path.join(save_dir, filename)
+        logger.info(f"Downloading image from {image_url} to {file_path}")
+        response = requests.get(image_url, stream=True)
+        if response.status_code == 200:
+            with open(file_path, "wb") as f:
+                for chunk in response.iter_content(1024):
+                    f.write(chunk)
+            return file_path
+        else:
+            self.logger.error(f"Failed to download image: {image_url}")
+            return None
+
+    def scrape(self, url, db=None, car_id=None):
         self.logger.info(f"Starting scrape for URL: {url}")
-        driver = webdriver.Chrome()
-        driver.get(url)
-        soup = BeautifulSoup(driver.page_source, "html.parser")
+        try:
+            self.logger.info("Launching Chrome WebDriver...")
+            driver = webdriver.Chrome()
+            self.logger.info("Chrome WebDriver launched successfully.")
+        except Exception as e:
+            self.logger.error(f"Failed to launch Chrome WebDriver: {e}")
+            raise
+        try:
+            self.logger.info(f"Navigating to {url}")
+            driver.get(url)
+            self.logger.info("Navigation complete. Fetching page source...")
+            page_source = driver.page_source
+            self.logger.info(f"Page source length: {len(page_source)}")
+            soup = BeautifulSoup(page_source, "html.parser")
+        except Exception as e:
+            self.logger.error(f"Error during navigation or page source fetch: {e}")
+            driver.quit()
+            raise
 
         car_name = car_type = car_generation = year = mileage = fuel_type = vehicle_number = price_amount = ""
         main_area = soup.find("div", class_="ResponsiveLayout_content_area__yyYYv")
@@ -60,17 +100,41 @@ class CarScraper:
                 else:
                     price_str = "69"
             price_won = self.calculate_price(price_str)
-            price_eur, currency_error = convert_krw_to_eur(price_won)
-            price_amount = price_eur + 1800 if price_eur is not None else None
+            price_eur = convert_krw_to_eur(price_won)
+            self.logger.info(f"KRW to EUR conversion result: {price_eur}")
+            try:
+                price_amount = float(price_eur) + 1800
+            except (TypeError, ValueError):
+                self.logger.warning(f"Price conversion failed, got value: {price_eur}")
+                price_amount = None
 
         image_urls = []
+        image_paths = []
         for img_tag in soup.find_all("img"):
             src = img_tag.get("src")
             data_src = img_tag.get("data-src")
             for url in [src, data_src]:
                 if url and url.startswith("https://ci.encar.com/carpicture") and url not in image_urls:
                     image_urls.append(url)
+                    # Extract order number from URL
+                    order_num = None
+                    try:
+                        # Example: .../40606713_024.jpg?
+                        filename = url.split("/")[-1]
+                        order_part = filename.split("_")[-1].split(".")[0]  # '024'
+                        order_num = int(order_part)
+                    except Exception:
+                        order_num = 0
+                    if db and car_id:
+                        path = self.download_and_save_image(url, car_id, order_num)
+                        if path:
+                            image_paths.append(path)
+                            car_image = CarImage(path=path, car_id=car_id, order=order_num)
+                            db.add(car_image)
+        if db:
+            db.commit()
 
+        self.logger.info("Quitting Chrome WebDriver...")
         driver.quit()
         self.logger.info(f"Scraping complete for URL: {url}")
 
@@ -83,6 +147,5 @@ class CarScraper:
             Fuel_Type=self.translate(fuel_type),
             Vehicle_Number=self.translate(vehicle_number),
             Price=price_amount,
-            Images=image_urls,
-            CurrencyError=currency_error
+            Images=image_paths if image_paths else image_urls,
         )

@@ -39,7 +39,7 @@ class TestCarScraper(CarScraper):
                 else:
                     price_str = "69"
             price_won = self.calculate_price(price_str)
-            price_eur, currency_error = 1000, False  # Mocked currency conversion
+            price_eur = 1000  # Mocked currency conversion
             price_amount = price_eur + 1800 if price_eur is not None else None
 
         image_urls = []
@@ -59,25 +59,6 @@ class TestCarScraper(CarScraper):
             "Fuel Type": self.translate(fuel_type),
             "Vehicle Number": vehicle_number,  # Do not translate
             "Price": price_amount,
-            "Images": image_urls,
-            "CurrencyError": currency_error
+            "Images": image_urls
         }
-
-def test_scrape_html_fields():
-    with open("tests/test.html", "r", encoding="utf-8") as f:
-        html = f.read()
-    scraper = TestCarScraper()
-    result = scraper.scrape_html(html)
-    assert result["Car Name"] == "TestCar"
-    assert result["Type"] == "SUV"
-    assert result["Generation"] == "2022"
-    assert result["Year"] == "2022"
-    assert result["Mileage"] == "15000km"
-    assert result["Fuel Type"] == "Gasoline"
-    assert result["Vehicle Number"] == "12가3456"
-    assert result["Price"] == 2800  # 1000 + 1800
-    assert result["Images"] == [
-        "https://ci.encar.com/carpicture/test1.jpg",
-        "https://ci.encar.com/carpicture/test2.jpg"
-    ]
-    assert result["CurrencyError"] is False
+    

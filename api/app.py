@@ -1,13 +1,22 @@
 from fastapi import FastAPI, Depends, HTTPException, status, Request
+from configs.cors_config import setup_cors
 from fastapi.security import APIKeyHeader
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 # Local imports
 from models.user import User
+from models.car_image import CarImage
 from services.user_service import UserService
 from services.scraper_service import CarScraper
 from schemas.car import CarDataRequest, CarDataResponse, CarDataDTO
+from pydantic import BaseModel
+from typing import List, Dict
+
+class CarProcessResponse(BaseModel):
+    car_id: int
+    car: Dict
+    image_ids: List[int]
 from services.auth_dependencies import get_current_user, require_role
 from db.deps import get_db
 from services.car_service import CarService
@@ -21,6 +30,12 @@ logger = setup_logger("autoblur.api")
 api_key_scheme = APIKeyHeader(name="Authorization")
 
 app = FastAPI()
+
+# =======================
+# CORS Middleware
+# =======================
+setup_cors(app)
+
 logger.info("FastAPI app initialized.")
 
 # =======================
@@ -33,9 +48,12 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 from schemas.user import RegisterRequest, LoginRequest
         
+from sqlalchemy import select
+
 # =======================
 # Endpoints
 # =======================
+
 @app.post("/register")
 def register(request: RegisterRequest, db: Session = Depends(get_db)):
     logger.info(f"/register endpoint called for username={request.username}")
@@ -52,14 +70,20 @@ def login(request: LoginRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=401, detail=result["error"])
     return result
 
-@app.post("/car-data", response_model=CarDataResponse)
+@app.post("/car-data", response_model=CarProcessResponse)
 def get_car_data(
     request: CarDataRequest,
     token: str = Depends(api_key_scheme),
     db: Session = Depends(get_db)
 ):
     logger.info(f"/car-data endpoint called with token={token}")
-    scraper = CarScraper()
-    car_data = scraper.scrape(request.url)
-    CarService.save_car(car_data.model_dump(exclude={"Images"}), db)
-    return car_data
+    result = CarService.process_car_workflow(request.url, db)
+    return result
+
+@app.get("/car-image/{image_id}")
+def get_car_image(image_id: int, token: str = Depends(api_key_scheme), db: Session = Depends(get_db)):
+    logger.info(f"/car-image/{image_id} endpoint called")
+    image_bytes = CarService.get_image_bytes_by_id(image_id, db)
+    if image_bytes is None:
+        raise HTTPException(status_code=404, detail="Image not found")
+    return Response(content=image_bytes, media_type="image/jpeg")

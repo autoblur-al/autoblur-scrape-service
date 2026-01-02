@@ -1,4 +1,5 @@
 from sqlalchemy import Column, Integer, String, Float
+from sqlalchemy.orm import relationship
 from models.base import Base
 
 class Car(Base):
@@ -12,3 +13,5 @@ class Car(Base):
     fuel_type = Column(String)
     vehicle_number = Column(String)
     price = Column(Float)
+    images = relationship("CarImage", back_populates="car", cascade="all, delete-orphan")
+

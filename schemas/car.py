@@ -9,7 +9,6 @@ class CarDataDTO(BaseModel):
     Fuel_Type: str
     Vehicle_Number: str
     Price: float | None
-    CurrencyError: bool
 
     @classmethod
     def from_scraped(cls, scraped: dict):
@@ -21,8 +20,7 @@ class CarDataDTO(BaseModel):
             Mileage=scraped.get("Mileage"),
             Fuel_Type=scraped.get("Fuel Type"),
             Vehicle_Number=scraped.get("Vehicle Number"),
-            Price=scraped.get("Price"),
-            CurrencyError=scraped.get("CurrencyError"),
+            Price=scraped.get("Price")
         )
 class CarDataRequest(BaseModel):
     url: str
@@ -37,4 +35,4 @@ class CarDataResponse(BaseModel):
     Vehicle_Number: str
     Price: float | None
     Images: list[str]
-    CurrencyError: bool
+    

@@ -14,10 +14,10 @@ def convert_krw_to_eur(amount):
         eur_rate = data["rates"].get("EUR")
         if eur_rate:
             converted = round(amount * eur_rate, -2)
-            return converted, False
+            return converted
         else:
             logger.error("EUR rate not found in API response.")
-            return None, True
+            return None
     except Exception as e:
         logger.error(f"Currency conversion failed: {e}")
-        return None, True
+        return None
