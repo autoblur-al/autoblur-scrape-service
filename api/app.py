@@ -1,6 +1,5 @@
 from fastapi import FastAPI, Depends, HTTPException, status, Request
 from configs.cors_config import setup_cors
-from fastapi.security import APIKeyHeader
 from fastapi.responses import JSONResponse, Response
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
@@ -26,8 +25,6 @@ from configs.logger_config import setup_logger
 # Logging Configuration
 # =======================
 logger = setup_logger("autoblur.api")
-
-api_key_scheme = APIKeyHeader(name="Authorization")
 
 app = FastAPI()
 
@@ -73,16 +70,20 @@ def login(request: LoginRequest, db: Session = Depends(get_db)):
 @app.post("/car-data", response_model=CarProcessResponse)
 def get_car_data(
     request: CarDataRequest,
-    token: str = Depends(api_key_scheme),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    logger.info(f"/car-data endpoint called with token={token}")
+    logger.info(f"/car-data endpoint called by user={current_user.username}")
     result = CarService.process_car_workflow(request.url, db)
     return result
 
 @app.get("/car-image/{image_id}")
-def get_car_image(image_id: int, token: str = Depends(api_key_scheme), db: Session = Depends(get_db)):
-    logger.info(f"/car-image/{image_id} endpoint called")
+def get_car_image(
+    image_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    logger.info(f"/car-image/{image_id} endpoint called by user={current_user.username}")
     image_bytes = CarService.get_image_bytes_by_id(image_id, db)
     if image_bytes is None:
         raise HTTPException(status_code=404, detail="Image not found")
