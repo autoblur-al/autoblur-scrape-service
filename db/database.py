@@ -1,5 +1,5 @@
 import logging
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, URL
 from sqlalchemy.orm import sessionmaker
 from models.base import Base
 
@@ -8,8 +8,16 @@ logger = logging.getLogger("autoblur.db")
 
 
 from configs.settings import settings
-DATABASE_URL = f"postgresql://{settings.db_user}:{settings.db_password}@{settings.db_host}:{settings.db_port}/{settings.db_name}"
-logger.debug(f"Using DATABASE_URL: {DATABASE_URL}")
+# Use URL.create() to properly handle special characters in password
+DATABASE_URL = URL.create(
+    drivername="postgresql",
+    username=settings.db_user,
+    password=settings.db_password,
+    host=settings.db_host,
+    port=int(settings.db_port),
+    database=settings.db_name
+)
+logger.debug(f"Connecting to database: {settings.db_name} on {settings.db_host}:{settings.db_port} as {settings.db_user}")
 
 try:
 	engine = create_engine(DATABASE_URL)
