@@ -1,5 +1,6 @@
 from pydantic_settings import BaseSettings
 
+
 class Settings(BaseSettings):
     db_user: str
     db_password: str
@@ -14,8 +15,7 @@ class Settings(BaseSettings):
         env_file = ".env"
         env_file_encoding = "utf-8"
         # Pydantic will also read from environment variables set in the system or by Kubernetes
-        fields = {
-            "car_image_save_dir": {"env": "CAR_IMAGE_SAVE_DIR"}
-        }
+        fields = {"car_image_save_dir": {"env": "CAR_IMAGE_SAVE_DIR"}}
+
 
 settings = Settings()

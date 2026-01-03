@@ -1,20 +1,29 @@
 from bs4 import BeautifulSoup
 from services.scraper_service import CarScraper
 
+
 # Helper to simulate scraping from HTML file instead of Selenium
 class TestCarScraper(CarScraper):
     def scrape_html(self, html):
         soup = BeautifulSoup(html, "html.parser")
         # Copy-paste the parsing logic from CarScraper.scrape, but use soup directly
-        car_name = car_type = car_generation = year = mileage = fuel_type = vehicle_number = price_amount = ""
+        car_name = car_type = car_generation = year = mileage = fuel_type = (
+            vehicle_number
+        ) = price_amount = ""
         main_area = soup.find("div", class_="ResponsiveLayout_content_area__yyYYv")
         if main_area:
             title_tag = main_area.find("h3", class_="DetailSummary_tit_car__0OEVh")
             if title_tag:
                 title_spans = title_tag.find_all("span")
-                car_name = title_spans[0].get_text(strip=True) if len(title_spans) > 0 else ""
-                car_type = title_spans[1].get_text(strip=True) if len(title_spans) > 1 else ""
-                car_generation = title_spans[2].get_text(strip=True) if len(title_spans) > 2 else ""
+                car_name = (
+                    title_spans[0].get_text(strip=True) if len(title_spans) > 0 else ""
+                )
+                car_type = (
+                    title_spans[1].get_text(strip=True) if len(title_spans) > 1 else ""
+                )
+                car_generation = (
+                    title_spans[2].get_text(strip=True) if len(title_spans) > 2 else ""
+                )
 
             summary = main_area.find("dl", class_="DetailSummary_define_summary__NOYid")
             if summary:
@@ -47,7 +56,11 @@ class TestCarScraper(CarScraper):
             src = img_tag.get("src")
             data_src = img_tag.get("data-src")
             for url in [src, data_src]:
-                if url and url.startswith("https://ci.encar.com/carpicture") and url not in image_urls:
+                if (
+                    url
+                    and url.startswith("https://ci.encar.com/carpicture")
+                    and url not in image_urls
+                ):
                     image_urls.append(url)
 
         return {
@@ -59,6 +72,5 @@ class TestCarScraper(CarScraper):
             "Fuel Type": self.translate(fuel_type),
             "Vehicle Number": vehicle_number,  # Do not translate
             "Price": price_amount,
-            "Images": image_urls
+            "Images": image_urls,
         }
-    

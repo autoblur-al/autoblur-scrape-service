@@ -1,8 +1,6 @@
 from configs.logger_config import setup_logger
 from clients.currency import convert_krw_to_eur
 from schemas.car import CarDataResponse
-import os
-import requests
 from models.car_image import CarImage
 from db.deps import get_db
 from selenium import webdriver
@@ -11,10 +9,11 @@ from deep_translator import GoogleTranslator
 
 logger = setup_logger("scraper_service")
 
+
 class CarScraper:
     def __init__(self):
         self.logger = setup_logger("scraper_service")
-        self.translator = GoogleTranslator(source='ko', target='en')
+        self.translator = GoogleTranslator(source="ko", target="en")
 
     def translate(self, text):
         return self.translator.translate(text) if text else ""
@@ -27,28 +26,10 @@ class CarScraper:
         price_won = (price + 44) * 10000
         return price_won
 
-    def download_and_save_image(self, image_url: str, car_id: int, order_num: int, save_dir: str = None) -> str:
-        # Use settings for image save directory
-        from configs.settings import settings
-        if save_dir is None:
-            save_dir = settings.car_image_save_dir
-        os.makedirs(save_dir, exist_ok=True)
-        filename = f"car_{car_id}_img_{order_num}.jpg"
-        file_path = os.path.join(save_dir, filename)
-        logger.info(f"Downloading image from {image_url} to {file_path}")
-        response = requests.get(image_url, stream=True)
-        if response.status_code == 200:
-            with open(file_path, "wb") as f:
-                for chunk in response.iter_content(1024):
-                    f.write(chunk)
-            return file_path
-        else:
-            self.logger.error(f"Failed to download image: {image_url}")
-            return None
-
     def scrape(self, url, db=None, car_id=None):
         self.logger.info(f"Starting scrape for URL: {url}")
         try:
+            car_external_id = self.extract_external_id_from_url(url)
             self.logger.info("Launching Chrome WebDriver...")
             driver = webdriver.Chrome()
             self.logger.info("Chrome WebDriver launched successfully.")
@@ -67,15 +48,23 @@ class CarScraper:
             driver.quit()
             raise
 
-        car_name = car_type = car_generation = year = mileage = fuel_type = vehicle_number = price_amount = ""
+        car_name = car_type = car_generation = year = mileage = fuel_type = (
+            vehicle_number
+        ) = price_amount = ""
         main_area = soup.find("div", class_="ResponsiveLayout_content_area__yyYYv")
         if main_area:
             title_tag = main_area.find("h3", class_="DetailSummary_tit_car__0OEVh")
             if title_tag:
                 title_spans = title_tag.find_all("span")
-                car_name = title_spans[0].get_text(strip=True) if len(title_spans) > 0 else ""
-                car_type = title_spans[1].get_text(strip=True) if len(title_spans) > 1 else ""
-                car_generation = title_spans[2].get_text(strip=True) if len(title_spans) > 2 else ""
+                car_name = (
+                    title_spans[0].get_text(strip=True) if len(title_spans) > 0 else ""
+                )
+                car_type = (
+                    title_spans[1].get_text(strip=True) if len(title_spans) > 1 else ""
+                )
+                car_generation = (
+                    title_spans[2].get_text(strip=True) if len(title_spans) > 2 else ""
+                )
 
             summary = main_area.find("dl", class_="DetailSummary_define_summary__NOYid")
             if summary:
@@ -114,7 +103,11 @@ class CarScraper:
             src = img_tag.get("src")
             data_src = img_tag.get("data-src")
             for url in [src, data_src]:
-                if url and url.startswith("https://ci.encar.com/carpicture") and url not in image_urls:
+                if (
+                    url
+                    and url.startswith("https://ci.encar.com/carpicture")
+                    and url not in image_urls
+                ):
                     image_urls.append(url)
                     # Extract order number from URL
                     order_num = None
@@ -129,7 +122,9 @@ class CarScraper:
                         path = self.download_and_save_image(url, car_id, order_num)
                         if path:
                             image_paths.append(path)
-                            car_image = CarImage(path=path, car_id=car_id, order=order_num)
+                            car_image = CarImage(
+                                path=path, car_id=car_id, order=order_num
+                            )
                             db.add(car_image)
         if db:
             db.commit()
@@ -139,6 +134,7 @@ class CarScraper:
         self.logger.info(f"Scraping complete for URL: {url}")
 
         return CarDataResponse(
+            Car_External_ID=car_external_id,
             Car_Name=self.translate(car_name),
             Type=self.translate(car_type),
             Generation=self.translate(car_generation),
@@ -149,3 +145,15 @@ class CarScraper:
             Price=price_amount,
             Images=image_paths if image_paths else image_urls,
         )
+
+    @staticmethod
+    def extract_external_id_from_url(url: str) -> str:
+        try:
+            parts = url.split("/detail/")
+            if len(parts) > 1:
+                external_id = parts[1].split("?")[0]
+                return external_id
+            return None
+        except Exception as e:
+            logger.error(f"Failed to extract external ID from URL {url}: {e}")
+            return None

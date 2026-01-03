@@ -1,6 +1,6 @@
 import logging
 
-LOG_FORMAT = '[%(asctime)s] %(levelname)s in %(name)s: %(message)s'
+LOG_FORMAT = "[%(asctime)s] %(levelname)s in %(name)s: %(message)s"
 LOG_LEVEL = logging.INFO
 
 # You can change filename to log to a file instead of console
@@ -28,4 +28,3 @@ def setup_logger(name: str):
     requests_logger = logging.getLogger("requests")
     requests_logger.setLevel(logging.WARNING)
     return logger
-    

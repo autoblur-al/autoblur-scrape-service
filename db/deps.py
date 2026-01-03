@@ -1,6 +1,7 @@
 from db.database import SessionLocal
 from sqlalchemy.orm import Session
 
+
 def get_db():
     db = SessionLocal()
     try:

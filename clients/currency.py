@@ -3,6 +3,7 @@ from configs.logger_config import setup_logger
 
 logger = setup_logger("currency_api")
 
+
 def convert_krw_to_eur(amount):
     """
     Convert KRW to EUR using exchangerate-api.com
